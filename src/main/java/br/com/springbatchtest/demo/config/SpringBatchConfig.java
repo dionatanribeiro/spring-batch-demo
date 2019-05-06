@@ -1,7 +1,9 @@
 package br.com.springbatchtest.demo.config;
 
+import br.com.springbatchtest.demo.batch.user.exporter.ExportProcessor;
 import br.com.springbatchtest.demo.batch.user.reader.DBWriter;
 import br.com.springbatchtest.demo.model.User;
+import br.com.springbatchtest.demo.model.UserDto;
 import br.com.springbatchtest.demo.model.UserSpecification;
 import br.com.springbatchtest.demo.repository.UserRepository;
 import org.springframework.batch.core.Job;
@@ -39,8 +41,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.toList;
-
 @Configuration
 @EnableBatchProcessing
 public class SpringBatchConfig {
@@ -54,6 +54,9 @@ public class SpringBatchConfig {
 
     @Autowired
     private DBWriter dbWriter;
+
+    @Autowired
+    private ExportProcessor exportProcessor;
 
     @Bean
     public Job job(JobBuilderFactory jobBuilderFactory,
@@ -71,8 +74,9 @@ public class SpringBatchConfig {
                 .build();
 
         Step step2 = stepBuilderFactory.get("CSV-EXPORT-Users")
-                .<User, User>chunk(chunkSize)
+                .<User, UserDto>chunk(chunkSize)
                 .reader(userDbItemReader)
+                .processor(exportProcessor)
                 .writer(csvWriter())
                 .build();
 
@@ -119,10 +123,10 @@ public class SpringBatchConfig {
         return defaultLineMapper;
     }
 
-    public ItemWriter<User> csvWriter()
+    public ItemWriter<UserDto> csvWriter()
     {
         //Create writer instance
-        FlatFileItemWriter<User> writer = new FlatFileItemWriter<>();
+        FlatFileItemWriter<UserDto> writer = new FlatFileItemWriter<>();
 
         //Set output file location
         writer.setResource(outputResource);
@@ -132,17 +136,17 @@ public class SpringBatchConfig {
 
         writer.setEncoding("UTF-8");
 
-        String[] headers = { "id", "name", "dept", "salary", "time" };
+        String[] headers = { "id", "name", "salary", "time" };
 
         // write first line by headers string
         writer.setHeaderCallback(w -> w.write(Stream.of(headers)
                 .collect(Collectors.joining(CSV_DELIMITER))));
 
         //Name field values sequence based on object properties
-        writer.setLineAggregator(new DelimitedLineAggregator<User>() {
+        writer.setLineAggregator(new DelimitedLineAggregator<UserDto>() {
             {
                 setDelimiter(CSV_DELIMITER);
-                setFieldExtractor(new BeanWrapperFieldExtractor<User>() {
+                setFieldExtractor(new BeanWrapperFieldExtractor<UserDto>() {
                     {
                         setNames(headers);
                     }
